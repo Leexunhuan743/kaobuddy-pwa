@@ -289,7 +289,7 @@ async def test_deepseek_v4_disables_thinking_for_chat_completions(monkeypatch):
 
 
 def test_plan_allows_empty_weak_points(monkeypatch):
-    async def fake_chat_completion(api_config, messages):
+    async def fake_chat_completion(api_config, messages, session_id=None):
         assert "已知薄弱项：未填写" in messages[1].content
         return "第 1 天：建立计划。"
 
@@ -319,7 +319,7 @@ def test_plan_allows_empty_weak_points(monkeypatch):
 def test_plan_prompt_is_material_driven_module_cards(monkeypatch):
     captured = {}
 
-    async def fake_chat_completion(api_config, messages):
+    async def fake_chat_completion(api_config, messages, session_id=None):
         captured["system"] = messages[0].content
         captured["user"] = messages[1].content
         return "模块名称：进程；预计时间：45分钟；难度：中；重要排名：1；考察内容：PCB、状态转换、调度。"
@@ -363,7 +363,7 @@ def test_plan_splits_long_materials_before_ai(monkeypatch):
     captured_users = []
     captured_tokens = []
 
-    async def fake_chat_completion(api_config, messages):
+    async def fake_chat_completion(api_config, messages, session_id=None):
         captured_users.append(messages[1].content)
         captured_tokens.append(api_config.max_tokens)
         return "模块名称：关系模式；预计时间：45分钟；难度：中；重要排名：1；资料来源：数据库教材；证据：关系模式由属性集合构成；考察内容：关系模式、属性、元组；练习方式：做概念辨析题"
@@ -406,7 +406,7 @@ def test_plan_splits_long_materials_before_ai(monkeypatch):
 def test_plan_processes_all_material_chunks(monkeypatch):
     captured_users = []
 
-    async def fake_chat_completion(api_config, messages):
+    async def fake_chat_completion(api_config, messages, session_id=None):
         captured_users.append(messages[1].content)
         return "模块名称：关系完整性；预计时间：45分钟；难度：中；重要排名：1；资料来源：数据库教材；证据：实体完整性、参照完整性和用户定义完整性；考察内容：完整性约束；练习方式：做约束判断题"
 
@@ -447,7 +447,7 @@ def test_plan_processes_all_material_chunks(monkeypatch):
 def test_plan_prompt_raises_coverage_for_high_target_scores(monkeypatch):
     captured_users = []
 
-    async def fake_chat_completion(api_config, messages):
+    async def fake_chat_completion(api_config, messages, session_id=None):
         captured_users.append(messages[1].content)
         return "模块名称：文件目录；预计时间：45分钟；难度：中；重要排名：1；资料来源：操作系统教材；证据：资料列出文件目录；考察内容：文件目录结构；练习方式：做目录结构题"
 
@@ -489,7 +489,7 @@ def test_plan_prompt_raises_coverage_for_high_target_scores(monkeypatch):
 def test_module_practice_prompt_focuses_on_current_module(monkeypatch):
     captured = {}
 
-    async def fake_chat_completion(api_config, messages):
+    async def fake_chat_completion(api_config, messages, session_id=None):
         captured["max_tokens"] = api_config.max_tokens
         captured["user"] = messages[1].content
         return "1. 进程有哪些基本状态？\n参考答案：就绪、运行、阻塞。"
@@ -581,7 +581,7 @@ def test_invite_chat_uses_server_config_and_decrements_budget(monkeypatch, tmp_p
     monkeypatch.setenv("KAOBUDDY_AI_OUTPUT_CNY_PER_MILLION", "20")
     captured = {}
 
-    async def fake_chat_completion_with_usage(api_config, messages):
+    async def fake_chat_completion_with_usage(api_config, messages, session_id=None):
         captured["api_config"] = api_config
         captured["messages"] = messages
         return "邀请码响应", {"prompt_tokens": 1000, "completion_tokens": 2000}
@@ -638,7 +638,7 @@ def test_existing_ai_endpoint_accepts_invite_code(monkeypatch, tmp_path):
     monkeypatch.setenv("KAOBUDDY_AI_OUTPUT_CNY_PER_MILLION", "20")
     captured = {}
 
-    async def fake_chat_completion_with_usage(api_config, messages):
+    async def fake_chat_completion_with_usage(api_config, messages, session_id=None):
         captured["api_config"] = api_config
         captured["user"] = messages[1].content
         return "邀请码计划", {"prompt_tokens": 1000, "completion_tokens": 1000}
@@ -679,7 +679,7 @@ def test_frontend_keeps_invite_auth_wired():
 def test_daily_plan_prompt_uses_project_and_unfinished_modules(monkeypatch):
     captured = {}
 
-    async def fake_chat_completion(api_config, messages):
+    async def fake_chat_completion(api_config, messages, session_id=None):
         captured["system"] = messages[0].content
         captured["user"] = messages[1].content
         return '[{"module_id":"module_process","date":"2026-06-03","day_order":1,"reason":"先学高优先级模块"}]'
@@ -796,7 +796,7 @@ def test_invite_plan_oversized_body_rejected(monkeypatch, tmp_path):
 
 
 def test_daily_plan_rejects_empty_modules(monkeypatch):
-    async def fake_chat_completion(api_config, messages):
+    async def fake_chat_completion(api_config, messages, session_id=None):
         return '[{"module_id":"x","date":"2026-06-07","day_order":1,"reason":"test"}]'
 
     monkeypatch.setattr("backend.app.main.chat_completion", fake_chat_completion)
@@ -819,7 +819,7 @@ def test_daily_plan_rejects_empty_modules(monkeypatch):
 
 
 def test_deepseek_handwriting_ocr_returns_multimodal_message(monkeypatch):
-    async def fake_chat_completion(api_config, messages):
+    async def fake_chat_completion(api_config, messages, session_id=None):
         raise AssertionError("DeepSeek image OCR should be rejected before calling AI")
 
     monkeypatch.setattr("backend.app.main.chat_completion", fake_chat_completion)
@@ -839,6 +839,75 @@ def test_deepseek_handwriting_ocr_returns_multimodal_message(monkeypatch):
 
     assert response.status_code == 400
     assert response.json()["detail"] == "DeepSeek 没有多模态，暂时不支持解析图片。"
+
+
+def test_vision_model_on_gateway_passes_gate_and_forwards_session(monkeypatch):
+    captured = {}
+
+    async def fake_chat_completion(api_config, messages, session_id=None):
+        captured["session_id"] = session_id
+        captured["model"] = api_config.model
+        return "第三章笔记：进程状态转换"
+
+    monkeypatch.setattr("backend.app.main.chat_completion", fake_chat_completion)
+    response = client.post(
+        "/api/ocr/handwriting",
+        json={
+            "api_config": {
+                "provider_name": "OpenCode Go",
+                "base_url": "https://opencode.ai/zen/v1",
+                "api_key": TEST_API_KEY,
+                "model": "deepseek-v4-flash-vision-exp",
+            },
+            "session_id": "project_abc-123",
+            "image_data_urls": ["data:image/png;base64,VEVTVA=="],
+            "note_hint": "第三章笔记",
+        },
+    )
+
+    assert response.status_code == 200
+    assert captured == {"session_id": "project_abc-123", "model": "deepseek-v4-flash-vision-exp"}
+
+
+def test_deepseek_model_without_vision_marker_is_still_rejected(monkeypatch):
+    async def fake_chat_completion(api_config, messages, session_id=None):
+        raise AssertionError("没有 vision 标注的 DeepSeek 模型应该在调用 AI 之前就被拦下")
+
+    monkeypatch.setattr("backend.app.main.chat_completion", fake_chat_completion)
+    response = client.post(
+        "/api/ocr/handwriting",
+        json={
+            "api_config": {
+                "provider_name": "OpenCode Go",
+                "base_url": "https://opencode.ai/zen/v1",
+                "api_key": TEST_API_KEY,
+                "model": "deepseek-v4.1-flash",
+            },
+            "image_data_urls": ["data:image/png;base64,VEVTVA=="],
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "DeepSeek 没有多模态，暂时不支持解析图片。"
+
+
+def test_session_id_cannot_smuggle_header_content():
+    response = client.post(
+        "/api/ai/plan",
+        json={
+            "api_config": {
+                "provider_name": "OpenCode Go",
+                "base_url": "https://opencode.ai/zen/v1",
+                "api_key": TEST_API_KEY,
+                "model": "deepseek-v4.1-flash",
+            },
+            "session_id": "abc\r\nX-Evil: 1",
+            "project": {"subject": "测试", "exam_date": "2026-12-31", "daily_minutes": 60},
+            "materials": [],
+        },
+    )
+
+    assert response.status_code == 422
 
 
 # ---- Logging related: health check still works ----

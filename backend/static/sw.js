@@ -1,6 +1,6 @@
 // 构建时写入版本和完整静态资源列表；开发模式不注册此模板。
-const CACHE_VERSION = "kaobuddy-5590aeb993729614";
-const SHELL = ["/","/manifest.webmanifest","/icons/icon.svg","/assets/_commonjsHelpers-_d1bhYXs.js","/assets/index-ChmmZPVL.css","/assets/index-DLHh6Qqb.js","/assets/index-DVirBW6R.js","/assets/index.es-Bs-_RSrS.js","/assets/jszip.min-BSSsfq2I.js","/assets/jszip.min-Dwe8nWl1.js","/assets/pdf-CcZYcL52.js","/assets/pdf.worker-BgryrOlp.mjs","/assets/pdf.worker-rRTVGHQx.js","/assets/pdfExport-CXIZqEuT.js","/assets/purify.es-DedTAGkB.js","/index.html"];
+const CACHE_VERSION = "kaobuddy-af9ccf9340e9dd73";
+const SHELL = ["/","/manifest.webmanifest","/icons/icon.svg","/assets/_commonjsHelpers-_d1bhYXs.js","/assets/index-B-9Vjsqg.js","/assets/index-ChmmZPVL.css","/assets/index-DLHh6Qqb.js","/assets/index.es-BL6Ri9wL.js","/assets/jszip.min-BSSsfq2I.js","/assets/jszip.min-Dwe8nWl1.js","/assets/pdf-CcZYcL52.js","/assets/pdf.worker-BgryrOlp.mjs","/assets/pdf.worker-rRTVGHQx.js","/assets/pdfExport-Cq_OxxMM.js","/assets/purify.es-DedTAGkB.js","/index.html"];
 const SHELL_URLS = new Set(SHELL);
 
 self.addEventListener("message", (event) => {

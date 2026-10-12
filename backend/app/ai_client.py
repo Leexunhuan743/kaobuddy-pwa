@@ -9,10 +9,34 @@ import httpx
 
 from .schemas import ApiConfig, ChatMessage
 from .outbound import ai_transport
+from .version import __version__
 
 
 class AiClientError(RuntimeError):
     pass
+
+
+# OpenCode 网关明确要求客户端别用 SDK/HTTP 库的默认 UA。
+USER_AGENT = f"KaoBuddy/{__version__}"
+OPENCODE_GATEWAY_HOST = "opencode.ai"
+
+
+def _is_opencode_gateway(base_url: str) -> bool:
+    host = (httpx.URL(base_url).host or "").lower()
+    return host == OPENCODE_GATEWAY_HOST or host.endswith(f".{OPENCODE_GATEWAY_HOST}")
+
+
+def _request_headers(api_config: ApiConfig, session_id: str | None = None) -> Dict[str, str]:
+    headers = {
+        "Authorization": f"Bearer {api_config.api_key}",
+        "Content-Type": "application/json",
+        "User-Agent": USER_AGENT,
+    }
+    # 会话 id 只发给 OpenCode 网关：它用这个做路由和 prompt 缓存，其他服务商没有这个约定，
+    # 也不该拿到一个能跨请求关联同一个项目的标识。
+    if session_id and _is_opencode_gateway(api_config.base_url):
+        headers["x-opencode-session"] = session_id
+    return headers
 
 
 def redact_secret(value: str) -> str:
@@ -90,18 +114,15 @@ def _chat_completion_payload(api_config: ApiConfig, messages: List[ChatMessage],
     return payload
 
 
-async def chat_completion(api_config: ApiConfig, messages: List[ChatMessage]) -> str:
-    content, _usage = await chat_completion_with_usage(api_config, messages)
+async def chat_completion(api_config: ApiConfig, messages: List[ChatMessage], session_id: str | None = None) -> str:
+    content, _usage = await chat_completion_with_usage(api_config, messages, session_id)
     return content
 
 
-async def chat_completion_with_usage(api_config: ApiConfig, messages: List[ChatMessage]) -> Tuple[str, Dict[str, Any]]:
+async def chat_completion_with_usage(api_config: ApiConfig, messages: List[ChatMessage], session_id: str | None = None) -> Tuple[str, Dict[str, Any]]:
     endpoint = f"{api_config.base_url}/chat/completions"
     payload = _chat_completion_payload(api_config, messages)
-    headers = {
-        "Authorization": f"Bearer {api_config.api_key}",
-        "Content-Type": "application/json",
-    }
+    headers = _request_headers(api_config, session_id)
 
     try:
         async with httpx.AsyncClient(
@@ -130,16 +151,13 @@ async def chat_completion_with_usage(api_config: ApiConfig, messages: List[ChatM
     return content.strip(), usage if isinstance(usage, dict) else {}
 
 
-async def chat_completion_stream(api_config: ApiConfig, messages: List[ChatMessage]):
+async def chat_completion_stream(api_config: ApiConfig, messages: List[ChatMessage], session_id: str | None = None):
     """Stream tokens from AI provider, yielding SSE content chunks."""
     from typing import AsyncGenerator
 
     endpoint = f"{api_config.base_url}/chat/completions"
     payload = _chat_completion_payload(api_config, messages, stream=True)
-    headers = {
-        "Authorization": f"Bearer {api_config.api_key}",
-        "Content-Type": "application/json",
-    }
+    headers = _request_headers(api_config, session_id)
 
     try:
         async with httpx.AsyncClient(

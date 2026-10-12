@@ -1,6 +1,10 @@
-from typing import Any, Dict, List, Literal, Optional
+from typing import Annotated, Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator
+
+
+# 会话 id 会被转发成 HTTP 头，所以限制成不含换行的短标识。
+SessionId = Annotated[Optional[str], Field(max_length=120, pattern=r"^[A-Za-z0-9._:+-]+$")]
 
 
 class ApiConfig(BaseModel):
@@ -40,6 +44,7 @@ class AiRequest(BaseModel):
 
     api_config: Optional[ApiConfig] = None
     invite_code: Optional[str] = Field(default=None, alias="inviteCode")
+    session_id: SessionId = None
     project: StudyProject
     materials: List[MaterialSummary] = []
     extra: Optional[str] = None
@@ -64,6 +69,7 @@ class MockGradeRequest(BaseModel):
 
     api_config: Optional[ApiConfig] = None
     invite_code: Optional[str] = Field(default=None, alias="inviteCode")
+    session_id: SessionId = None
     project: StudyProject
     materials: List[MaterialSummary] = []
     exam_content: str = Field(min_length=1)
@@ -87,6 +93,7 @@ class DailyPlanRequest(BaseModel):
 
     api_config: Optional[ApiConfig] = None
     invite_code: Optional[str] = Field(default=None, alias="inviteCode")
+    session_id: SessionId = None
     project: StudyProject
     modules: List[DailyPlanModule] = []
     extra: Optional[str] = None
@@ -102,6 +109,7 @@ class ChatCompletionRequest(BaseModel):
 
     api_config: Optional[ApiConfig] = None
     invite_code: Optional[str] = Field(default=None, alias="inviteCode")
+    session_id: SessionId = None
     messages: List[ChatMessage]
 
 
@@ -110,6 +118,7 @@ class HandwritingRequest(BaseModel):
 
     api_config: Optional[ApiConfig] = None
     invite_code: Optional[str] = Field(default=None, alias="inviteCode")
+    session_id: SessionId = None
     image_data_urls: List[str] = Field(min_length=1, max_length=6)
     note_hint: Optional[str] = None
 

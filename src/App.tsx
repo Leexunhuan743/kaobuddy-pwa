@@ -50,6 +50,7 @@ const presets: ProviderPreset[] = [
   { provider_name: "Kimi 国内", base_url: "https://api.moonshot.cn/v1", model: "kimi-k2.6" },
   { provider_name: "Kimi 国际", base_url: "https://api.moonshot.ai/v1", model: "kimi-k2.6" },
   { provider_name: "OpenAI", base_url: "https://api.openai.com/v1", model: "gpt-5.5" },
+  { provider_name: "OpenCode Go", base_url: "https://opencode.ai/zen/v1", model: "deepseek-v4.1-flash" },
   { provider_name: "自定义", base_url: "https://", model: "" }
 ];
 
@@ -298,7 +299,8 @@ export default function App() {
   }
 
   function getAuthPayload(): AiAuthPayload {
-    return buildAiAuthPayload(latestInviteState(), apiConfig);
+    // 同一个项目的 AI 请求共享会话 id，后端会把它转发给 OpenCode 网关做路由和缓存。
+    return { ...buildAiAuthPayload(latestInviteState(), apiConfig), session_id: activeProject?.id };
   }
 
   function projectProgress(projectId: string) {

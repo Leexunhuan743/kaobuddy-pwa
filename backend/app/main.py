@@ -56,6 +56,7 @@ from .schemas import (
     VideoImportResponse,
 )
 from .video import import_video_metadata
+from .version import __version__
 
 log = get_logger()
 
@@ -67,7 +68,7 @@ DIST_DIR = PATHS.dist_dir
 PUBLIC_DIR = PATHS.public_dir
 
 
-app = FastAPI(title="KaoBuddy API", version="1.2.4")
+app = FastAPI(title="KaoBuddy API", version=__version__)
 
 _raw_origins = os.getenv(
     "ALLOWED_ORIGINS",
@@ -272,11 +273,19 @@ def _response_from_invite(content: str, invite_code: str, usage: dict[str, Any],
     return AiResponse(content=content, remaining=status.remaining, remaining_budget_cny=status.remaining_budget_cny)
 
 
-def _is_deepseek_api_config(api_config: Any) -> bool:
-    provider = getattr(api_config, "provider_name", "").lower()
-    base_url = getattr(api_config, "base_url", "").lower()
-    model = getattr(api_config, "model", "").lower()
-    return "deepseek" in provider or "api.deepseek.com" in base_url or "deepseek" in model
+def _image_recognition_blocked(api_config: Any) -> bool:
+    """只在确定没有视觉能力时拦截图片识别。
+
+    DeepSeek 官方 API 没有多模态。名字里带 deepseek 但没标注 vision 的模型
+    （例如 deepseek-v4.1-flash）同样按不支持处理；标注了 vision 的模型
+    （例如网关上的 deepseek-v4-flash-vision-exp）放行，别再因为名字里带
+    deepseek 就把能读图的模型一起挡掉。
+    """
+    base_url = (getattr(api_config, "base_url", "") or "").lower()
+    model = (getattr(api_config, "model", "") or "").lower()
+    if "api.deepseek.com" in base_url:
+        return True
+    return "deepseek" in model and "vision" not in model
 
 
 def _resolve_auth(
@@ -334,7 +343,7 @@ async def _chat_for_request(
 ) -> AiResponse:
     prompt_chars = _messages_char_count(messages)
     api_config, invite_code = _resolve_auth(request, prompt_chars, minimum_tokens)
-    if requires_vision and _is_deepseek_api_config(api_config):
+    if requires_vision and _image_recognition_blocked(api_config):
         raise HTTPException(status_code=400, detail=DEEPSEEK_IMAGE_UNSUPPORTED_MESSAGE)
 
     if not invite_code:
@@ -345,7 +354,7 @@ async def _chat_for_request(
                         prompt_chars=prompt_chars,
                         max_tokens=api_config.max_tokens):
             try:
-                content = await chat_completion(api_config, messages)
+                content = await chat_completion(api_config, messages, request.session_id)
             except AiClientError as exc:
                 log.warning("ai call failed", auth="custom", provider=api_config.provider_name, model=api_config.model, error=str(exc)[:300])
                 raise HTTPException(status_code=502, detail=str(exc)) from exc
@@ -360,7 +369,7 @@ async def _chat_for_request(
                         model=api_config.model,
                         prompt_chars=prompt_chars,
                         max_tokens=capped_tokens):
-            content, usage = await chat_completion_with_usage(api_config, messages)
+            content, usage = await chat_completion_with_usage(api_config, messages, request.session_id)
         return _response_from_invite(content, invite_code, usage, prompt_chars)
     except AiClientError as exc:
         log.warning("ai call failed", auth="invite", model=api_config.model, error=str(exc)[:300])
@@ -614,7 +623,7 @@ async def generate_cards_stream(request: AiRequest):
         chunk_count = 0
         full_text = ""
         try:
-            async for chunk in chat_completion_stream(api_config, messages):
+            async for chunk in chat_completion_stream(api_config, messages, request.session_id):
                 chunk_count += 1
                 full_text += chunk
                 yield f"data: {json.dumps({'t': chunk})}\n\n"
@@ -641,6 +650,7 @@ async def practice(request: PracticeRequest) -> AiResponse:
     enriched = AiRequest(
         api_config=request.api_config,
         inviteCode=request.invite_code,
+        session_id=request.session_id,
         project=request.project,
         materials=request.materials,
         extra=f"{request.extra or ''}\n\n【用户作答】\n{answer_text}",
@@ -676,6 +686,7 @@ async def grade_practice(request: PracticeRequest) -> AiResponse:
     enriched = AiRequest(
         api_config=request.api_config,
         inviteCode=request.invite_code,
+        session_id=request.session_id,
         project=request.project,
         materials=request.materials,
         extra=f"【原始练习题】\n{request.extra or '无'}\n\n【学生作答】\n{answer_text}",
@@ -714,6 +725,7 @@ async def grade_mock(request: MockGradeRequest) -> AiResponse:
     wrapper = AiRequest(
         api_config=request.api_config,
         inviteCode=request.invite_code,
+        session_id=request.session_id,
         project=request.project,
         materials=request.materials,
     )

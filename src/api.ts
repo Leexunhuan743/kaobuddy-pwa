@@ -2,7 +2,10 @@ import type { ApiConfig, StudyMaterial, StudyProject, StudyTask } from "./types"
 
 const API_BASE = "";
 
-export type AiAuthPayload = { api_config: ApiConfig; inviteCode?: never } | { inviteCode: string; api_config?: never };
+export type AiAuthPayload = ({ api_config: ApiConfig; inviteCode?: never } | { inviteCode: string; api_config?: never }) & {
+  /** 会话标识，后端只把它转发给 OpenCode 网关。 */
+  session_id?: string;
+};
 
 export type AiResult = {
   content: string;
@@ -20,15 +23,16 @@ type AiPayload = AiAuthPayload & {
 
 const LOCAL_BACKEND_OFFLINE_MESSAGE = "请求没有到达 KaoBuddy 后端，本地后端可能没有启动。请用 npm run dev 启动完整开发环境，或者双击 open-kaobuddy.command / open-kaobuddy.bat。";
 
-export function isDeepSeekApiConfig(api_config: ApiConfig): boolean {
-  const provider = api_config.provider_name.toLowerCase();
+/** 只在确定没有视觉能力时拦截；判断口径要和后端 _image_recognition_blocked 保持一致。 */
+export function isImageRecognitionUnsupported(api_config: ApiConfig): boolean {
   const baseUrl = api_config.base_url.toLowerCase();
   const model = api_config.model.toLowerCase();
-  return provider.includes("deepseek") || baseUrl.includes("api.deepseek.com") || model.includes("deepseek");
+  if (baseUrl.includes("api.deepseek.com")) return true;
+  return model.includes("deepseek") && !model.includes("vision");
 }
 
 export function assertImageRecognitionSupported(auth: AiAuthPayload): void {
-  if ("api_config" in auth && auth.api_config && isDeepSeekApiConfig(auth.api_config)) {
+  if ("api_config" in auth && auth.api_config && isImageRecognitionUnsupported(auth.api_config)) {
     throw new Error(DEEPSEEK_IMAGE_UNSUPPORTED_MESSAGE);
   }
 }
